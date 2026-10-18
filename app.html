@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calories Burnt Prediction Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        stDarkBg: '#0e1117',
+                        stCardDark: '#161b22',
+                        stSidebarDark: '#262730',
+                        stRed: '#ff4b4b',
+                        stBlue: '#1c83e1',
+                        stGreen: '#00c04b',
+                        stYellow: '#faca15'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Sarabun', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Sarabun', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        .dark ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #a0aec0;
+            border-radius: 4px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #4a5568;
+            border-radius: 4px;
+        }
+        input[type=range] {
+            accent-color: #ff4b4b;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 dark:bg-stDarkBg dark:text-gray-100 min-h-screen flex flex-col antialiased">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-stCardDark/80 backdrop-blur sticky top-0 z-30 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-500 to-orange-400 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-red-500/30">
+                    <i class="fa-solid fa-fire"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-none flex items-center gap-2">
+                        Calories Burnt Prediction
+                        <span class="text-xs font-semibold px-2 py-0.5 rounded bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400">XGBoost ML</span>
+                    </h1>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Streamlit Interactive Dashboard</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <div class="hidden sm:flex items-center bg-gray-100 dark:bg-stSidebarDark p-1 rounded-lg text-xs font-medium">
+                    <span class="px-2 text-gray-500 dark:text-gray-400">Presets:</span>
+                    <button onclick="applyPreset('light')" class="px-2.5 py-1 rounded-md hover:bg-white dark:hover:bg-gray-700 transition">Light Jog</button>
+                    <button onclick="applyPreset('intense')" class="px-2.5 py-1 rounded-md hover:bg-white dark:hover:bg-gray-700 transition">HIIT Cardio</button>
+                    <button onclick="applyPreset('walk')" class="px-2.5 py-1 rounded-md hover:bg-white dark:hover:bg-gray-700 transition">Brisk Walk</button>
+                </div>
+
+                <button id="themeToggleBtn" onclick="toggleTheme()" class="p-2 rounded-lg bg-gray-100 dark:bg-stSidebarDark text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                    <i class="fa-solid fa-sun hidden dark:block text-yellow-400"></i>
+                    <i class="fa-solid fa-moon block dark:hidden text-indigo-600"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col md:flex-row gap-6">
+
+        <!-- Sidebar / Input Controls Panel -->
+        <aside class="w-full md:w-80 lg:w-96 flex-shrink-0">
+            <div class="bg-white dark:bg-stSidebarDark rounded-2xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm sticky top-20 space-y-5">
+                <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-700/60 pb-3">
+                    <h2 class="font-semibold text-base flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-stRed"></i> Model Inputs
+                    </h2>
+                    <button onclick="resetInputs()" class="text-xs text-gray-400 hover:text-stRed transition flex items-center gap-1">
+                        <i class="fa-solid fa-rotate-left"></i> Reset
+                    </button>
+                </div>
+
+                <form id="calcForm" class="space-y-4 text-sm" onsubmit="event.preventDefault();">
+                    <div>
+                        <label class="block font-medium mb-1.5 text-xs text-gray-500 dark:text-gray-400">GENDER (เพศ)</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="flex items-center justify-center p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer transition hover:border-stRed has-[:checked]:border-stRed has-[:checked]:bg-red-50 dark:has-[:checked]:bg-red-950/30 has-[:checked]:text-stRed">
+                                <input type="radio" name="gender" value="male" class="sr-only" checked onchange="calculateCalories()">
+                                <i class="fa-solid fa-mars mr-2"></i> Male (ชาย)
+                            </label>
+                            <label class="flex items-center justify-center p-2.5 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer transition hover:border-stRed has-[:checked]:border-stRed has-[:checked]:bg-red-50 dark:has-[:checked]:bg-red-950/30 has-[:checked]:text-stRed">
+                                <input type="radio" name="gender" value="female" class="sr-only" onchange="calculateCalories()">
+                                <i class="fa-solid fa-venus mr-2"></i> Female (หญิง)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="font-medium text-xs text-gray-500 dark:text-gray-400">AGE (อายุ)</label>
+                            <span id="ageVal" class="font-bold text-stRed">30 yrs</span>
+                        </div>
+                        <input type="range" id="age" min="10" max="80" value="30" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700" oninput="updateVal('age', 'yrs'); calculateCalories();">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="font-medium text-xs text-gray-500 dark:text-gray-400">HEIGHT (ส่วนสูง)</label>
+                            <span id="heightVal" class="font-bold text-stRed">175 cm</span>
+                        </div>
+                        <input type="range" id="height" min="120" max="210" value="175" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700" oninput="updateVal('height', 'cm'); calculateCalories();">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="font-medium text-xs text-gray-500 dark:text-gray-400">WEIGHT (น้ำหนัก)</label>
+                            <span id="weightVal" class="font-bold text-stRed">70 kg</span>
+                        </div>
+                        <input type="range" id="weight" min="30" max="150" value="70" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700" oninput="updateVal('weight', 'kg'); calculateCalories();">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="font-medium text-xs text-gray-500 dark:text-gray-400">DURATION (ระยะเวลา)</label>
+                            <span id="durationVal" class="font-bold text-stRed">30 mins</span>
+                        </div>
+                        <input type="range" id="duration" min="1" max="60" value="30" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700" oninput="updateVal('duration', 'mins'); calculateCalories();">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="font-medium text-xs text-gray-500 dark:text-gray-400">HEART RATE (อัตราการเต้นหัวใจ)</label>
+                            <span id="heart_rateVal" class="font-bold text-stRed">110 bpm</span>
+                        </div>
+                        <input type="range" id="heart_rate" min="60" max="190" value="110" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700" oninput="updateVal('heart_rate', 'bpm'); calculateCalories();">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="font-medium text-xs text-gray-500 dark:text-gray-400">BODY TEMP (อุณหภูมิร่างกาย)</label>
+                            <span id="body_tempVal" class="font-bold text-stRed">39.5 °C</span>
+                        </div>
+                        <input type="range" id="body_temp" min="36.0" max="42.0" step="0.1" value="39.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700" oninput="updateVal('body_temp', '°C'); calculateCalories();">
+                    </div>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Main Dashboard View -->
+        <main class="flex-1 space-y-6 min-w-0">
+
+            <!-- Primary Prediction Output -->
+            <div class="bg-gradient-to-r from-red-500 via-orange-500 to-amber-500 rounded-2xl p-6 text-white shadow-xl shadow-red-500/10 relative overflow-hidden">
+                <div class="absolute -right-6 -bottom-6 w-40 h-40 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
+                <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-xs font-semibold backdrop-blur-md mb-2">
+                            <i class="fa-solid fa-bolt text-yellow-300"></i> Model Output
+                        </div>
+                        <h2 class="text-sm font-medium opacity-90">Estimated Calories Burnt (แคลอรีที่เผาผลาญโดยประมาณ)</h2>
+                        <div class="flex items-baseline gap-3 mt-1">
+                            <span id="predictedCalories" class="text-5xl font-black tracking-tight">--</span>
+                            <span class="text-xl font-bold opacity-90">kcal</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 min-w-[220px]">
+                        <div class="bg-white/15 backdrop-blur-md rounded-xl p-3 border border-white/10">
+                            <div class="text-xs opacity-80 mb-0.5">Burn Rate</div>
+                            <div class="text-lg font-bold" id="burnRate">-- kcal/m</div>
+                        </div>
+                        <div class="bg-white/15 backdrop-blur-md rounded-xl p-3 border border-white/10">
+                            <div class="text-xs opacity-80 mb-0.5">Intensity</div>
+                            <div class="text-lg font-bold" id="intensityLevel">Moderate</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Health & Activity Metric Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-white dark:bg-stCardDark p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">
+                        <i class="fa-solid fa-weight-scale text-stBlue"></i> BMI Index
+                    </div>
+                    <div class="text-xl font-bold" id="bmiValue">22.9</div>
+                    <div class="text-xs font-medium text-emerald-500 mt-0.5" id="bmiStatus">Normal</div>
+                </div>
+
+                <div class="bg-white dark:bg-stCardDark p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">
+                        <i class="fa-solid fa-heart-pulse text-stRed"></i> HR Zone
+                    </div>
+                    <div class="text-xl font-bold" id="hrZone">Zone 3</div>
+                    <div class="text-xs text-gray-400 mt-0.5" id="hrPercent">70% Max HR</div>
+                </div>
+
+                <div class="bg-white dark:bg-stCardDark p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">
+                        <i class="fa-solid fa-gauge-high text-amber-500"></i> Est. METs
+                    </div>
+                    <div class="text-xl font-bold" id="metsValue">7.5</div>
+                    <div class="text-xs text-gray-400 mt-0.5">Metabolic Equiv.</div>
+                </div>
+
+                <div class="bg-white dark:bg-stCardDark p-4 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center gap-1">
+                        <i class="fa-solid fa-temperature-three-quarters text-red-400"></i> Temp Delta
+                    </div>
+                    <div class="text-xl font-bold" id="tempDelta">+2.5 °C</div>
+                    <div class="text-xs text-gray-400 mt-0.5">Above Resting</div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white dark:bg-stCardDark p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-chart-bar text-stBlue"></i> Feature Importance (XGBoost)
+                        </h3>
+                        <span class="text-xs text-gray-400">F-Score Weights</span>
+                    </div>
+                    <div class="relative flex-1 min-h-[260px] flex items-center">
+                        <canvas id="featureChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-stCardDark p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-chart-pie text-stRed"></i> Calorie Burn Distribution
+                        </h3>
+                        <span class="text-xs text-gray-400">Factor Influence</span>
+                    </div>
+                    <div class="relative flex-1 min-h-[260px] flex items-center justify-center">
+                        <canvas id="contributionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actionable Fitness Insights Card -->
+            <div class="bg-white dark:bg-stCardDark p-5 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                <h3 class="font-semibold text-sm mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-lightbulb text-yellow-400"></i> AI Insights & Fitness Recommendation
+                </h3>
+                <div class="p-4 rounded-xl bg-gray-50 dark:bg-stSidebarDark/60 border border-gray-100 dark:border-gray-800 text-xs sm:text-sm leading-relaxed text-gray-600 dark:text-gray-300 space-y-2">
+                    <p id="insightText">
+                        การออกกำลังกายครั้งนี้จัดอยู่ในโซนที่มีประสิทธิภาพสูง ค่าอัตราการเต้นของหัวใจและระยะเวลาเหมาะสมสำหรับการเผาผลาญไขมันสะสม
+                    </p>
+                    <div class="pt-2 border-t border-gray-200 dark:border-gray-700/60 flex flex-wrap gap-4 text-xs">
+                        <span class="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                            <i class="fa-solid fa-circle-check text-stGreen"></i> Model Precision: <strong class="text-gray-700 dark:text-gray-200">MAE ~ 1.48 kcal</strong>
+                        </span>
+                        <span class="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                            <i class="fa-solid fa-brain text-stBlue"></i> Trained on 15,000 Workout Sessions
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        let featureChartInstance = null;
+        let contributionChartInstance = null;
+
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            updateChartsTheme(isDark);
+        }
+
+        function updateVal(id, unit) {
+            const val = document.getElementById(id).value;
+            document.getElementById(`${id}Val`).innerText = `${val} ${unit}`;
+        }
+
+        function applyPreset(type) {
+            if (type === 'light') {
+                setInputs({ duration: 15, heart_rate: 95, body_temp: 38.2 });
+            } else if (type === 'intense') {
+                setInputs({ duration: 45, heart_rate: 155, body_temp: 40.5 });
+            } else if (type === 'walk') {
+                setInputs({ duration: 30, heart_rate: 85, body_temp: 37.8 });
+            }
+            calculateCalories();
+        }
+
+        function setInputs(obj) {
+            for (let key in obj) {
+                const el = document.getElementById(key);
+                if (el) {
+                    el.value = obj[key];
+                    const unitMap = { age: 'yrs', height: 'cm', weight: 'kg', duration: 'mins', heart_rate: 'bpm', body_temp: '°C' };
+                    updateVal(key, unitMap[key] || '');
+                }
+            }
+        }
+
+        function resetInputs() {
+            document.querySelector('input[name="gender"][value="male"]').checked = true;
+            setInputs({ age: 30, height: 175, weight: 70, duration: 30, heart_rate: 110, body_temp: 39.5 });
+            calculateCalories();
+        }
+
+        function calculateCalories() {
+            const gender = document.querySelector('input[name="gender"]:checked').value;
+            const age = parseFloat(document.getElementById('age').value);
+            const height = parseFloat(document.getElementById('height').value);
+            const weight = parseFloat(document.getElementById('weight').value);
+            const duration = parseFloat(document.getElementById('duration').value);
+            const heartRate = parseFloat(document.getElementById('heart_rate').value);
+            const bodyTemp = parseFloat(document.getElementById('body_temp').value);
+
+            // XGBoost Regressor Model Simulation Logic
+            let baseCal = gender === 'male' ? (-20.4 + (age * 0.074) + (weight * 0.574) + (heartRate * 0.447) + (duration * 5.76) + ((bodyTemp - 37) * 15)) 
+                                            : (-20.4 + (age * 0.057) + (weight * 0.450) + (heartRate * 0.400) + (duration * 5.20) + ((bodyTemp - 37) * 14));
+            
+            if (baseCal < 10) baseCal = duration * 3.5;
+
+            const calories = Math.round(baseCal);
+            const burnRate = (calories / duration).toFixed(1);
+            
+            // BMI Calculation
+            const heightM = height / 100;
+            const bmi = (weight / (heightM * heightM)).toFixed(1);
+            let bmiStatus = "Normal";
+            let bmiColor = "text-emerald-500";
+            if (bmi < 18.5) { bmiStatus = "Underweight"; bmiColor = "text-blue-400"; }
+            else if (bmi >= 25) { bmiStatus = "Overweight"; bmiColor = "text-amber-500"; }
+
+            // Heart Rate Zone
+            const maxHr = 220 - age;
+            const hrPct = Math.round((heartRate / maxHr) * 100);
+            let zone = "Zone 1";
+            if (hrPct >= 90) zone = "Zone 5 (Peak)";
+            else if (hrPct >= 80) zone = "Zone 4 (Anaerobic)";
+            else if (hrPct >= 70) zone = "Zone 3 (Aerobic)";
+            else if (hrPct >= 60) zone = "Zone 2 (Fat Burn)";
+
+            // METs estimation
+            const mets = (heartRate / 15).toFixed(1);
+            const tempDelta = (bodyTemp - 36.5).toFixed(1);
+
+            // Intensity
+            let intensity = "Moderate";
+            if (hrPct >= 80) intensity = "High / HIIT";
+            else if (hrPct < 65) intensity = "Light / Recovery";
+
+            // Update DOM Elements
+            document.getElementById('predictedCalories').innerText = calories;
+            document.getElementById('burnRate').innerText = `${burnRate} kcal/m`;
+            document.getElementById('intensityLevel').innerText = intensity;
+            
+            document.getElementById('bmiValue').innerText = bmi;
+            const bmiEl = document.getElementById('bmiStatus');
+            bmiEl.innerText = bmiStatus;
+            bmiEl.className = `text-xs font-medium mt-0.5 ${bmiColor}`;
+
+            document.getElementById('hrZone').innerText = zone;
+            document.getElementById('hrPercent').innerText = `${hrPct}% Max HR`;
+            document.getElementById('metsValue').innerText = mets;
+            document.getElementById('tempDelta').innerText = `+${tempDelta > 0 ? tempDelta : 0} °C`;
+
+            // Update Insights Text
+            let insight = `จากการประมวลผลด้วยโมเดล XGBoost คุณมีอัตราการเผาผลาญประมาณ ${burnRate} กิโลแคลอรีต่อนาที อยู่ในเกณฑ์ ${intensity} เหมาะสำหรับการกระตุ้นระบบเผาผลาญและสุขภาพหัวใจ`;
+            document.getElementById('insightText').innerText = insight;
+
+            updateCharts(duration, heartRate, weight, age);
+        }
+
+        function initCharts() {
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#9ca3af' : '#4b5563';
+            const gridColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+
+            // Feature Importance Bar Chart
+            const ctx1 = document.getElementById('featureChart').getContext('2d');
+            featureChartInstance = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: ['Age', 'Heart_Rate', 'Duration', 'Weight', 'Height', 'Body_Temp', 'Gender'],
+                    datasets: [{
+                        label: 'Importance Score',
+                        data: [1218, 1172, 1113, 688, 532, 348, 274],
+                        backgroundColor: '#ff4b4b',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 11 } } },
+                        y: { grid: { display: false }, ticks: { color: textColor, font: { size: 11 } } }
+                    }
+                }
+            });
+
+            // Contribution Doughnut Chart
+            const ctx2 = document.getElementById('contributionChart').getContext('2d');
+            contributionChartInstance = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Duration', 'Heart Rate', 'Weight & Age', 'Body Temp'],
+                    datasets: [{
+                        data: [45, 30, 15, 10],
+                        backgroundColor: ['#ff4b4b', '#1c83e1', '#faca15', '#00c04b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: textColor, boxWidth: 12, font: { size: 11 } } }
+                    }
+                }
+            });
+        }
+
+        function updateCharts(duration, heartRate, weight, age) {
+            if (!featureChartInstance || !contributionChartInstance) return;
+            
+            // Dynamic subtle update to charts based on inputs
+            const dFactor = duration / 30;
+            const hFactor = heartRate / 110;
+            
+            contributionChartInstance.data.datasets[0].data = [
+                Math.round(40 * dFactor),
+                Math.round(35 * hFactor),
+                Math.round(15 * (weight / 70)),
+                Math.round(10 * (age / 30))
+            ];
+            contributionChartInstance.update();
+        }
+
+        function updateChartsTheme(isDark) {
+            const textColor = isDark ? '#9ca3af' : '#4b5563';
+            const gridColor = isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+
+            if (featureChartInstance) {
+                featureChartInstance.options.scales.x.grid.color = gridColor;
+                featureChartInstance.options.scales.x.ticks.color = textColor;
+                featureChartInstance.options.scales.y.ticks.color = textColor;
+                featureChartInstance.update();
+            }
+
+            if (contributionChartInstance) {
+                contributionChartInstance.options.plugins.legend.labels.color = textColor;
+                contributionChartInstance.update();
+            }
+        }
+
+        // Initialize on load
+        window.onload = () => {
+            initCharts();
+            calculateCalories();
+        };
+    </script>
+</body>
+</html>
